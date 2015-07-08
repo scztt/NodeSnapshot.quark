@@ -390,7 +390,7 @@ TreeSnapshotView : Singleton {
 		gsv.view.layout = VLayout().spacing_(3).margins_(5);
 		gsv.view.layout.add(
 			StaticText().font_(Font("M+ 1c", 10, true))
-			.fixedHeight_(30)
+			.fixedHeight_(26)
 			.string_("[%] group".format(group.nodeId))
 			.mouseUpAction_({
 				|v|
@@ -401,7 +401,7 @@ TreeSnapshotView : Singleton {
 		gsv.childrenView = View();
 		gsv.childrenView.layout = VLayout().spacing_(0).margins_(0);
 		gsv.view.layout.add(gsv.childrenView);
-		gsv.view.layout.add(nil);
+		//gsv.view.layout.add(nil);
 
 		// if (collapse) {
 		// 	(group.children
