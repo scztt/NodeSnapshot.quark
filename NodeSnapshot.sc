@@ -79,7 +79,7 @@ SynthSnapshot : NodeSnapshot {
 
 	defName_{
 		| inDefName |
-		defName = inDefName;
+		defName = inDefName.asSymbol;
 		desc = SynthDescLib.match(defName);
 	}
 
