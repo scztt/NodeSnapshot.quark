@@ -664,3 +664,44 @@ SynthSnapshotView {
 		}
 	}
 }
+
+
++SynthDesc {
+	== {
+		|other|
+		^(
+			(name == name)
+			&& (inputs == other.inputs)
+			&& (outputs == other.outputs)
+			&& (controlDict == other.controlDict)
+			&& (constants == other.constants)
+			&& (metadata == other.metadata)
+		)
+	}
+}
+
++IODesc {
+	== {
+		|other|
+		^(
+			(rate == other.rate) &&
+			(numberOfChannels == other.numberOfChannels) &&
+			(startingChannel == other.startingChannel) &&
+			(type == other.type)
+		)
+	}
+}
+
++ControlName {
+	== {
+		|other|
+		^(
+			(name == other.name) &&
+			(index == other.index) &&
+			(rate == other.rate) &&
+			(defaultValue == other.defaultValue) &&
+			(argNum == other.argNum) &&
+			(lag == other.lag)
+		)
+	}
+}
