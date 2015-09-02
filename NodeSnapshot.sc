@@ -390,7 +390,7 @@ TreeSnapshotView : Singleton {
 		gsv.view.layout = VLayout().spacing_(3).margins_(5);
 		gsv.view.layout.add(
 			StaticText().font_(Font("M+ 1c", 10, true))
-			.fixedHeight_(30)
+			.fixedHeight_(26)
 			.string_("[%] group".format(group.nodeId))
 			.mouseUpAction_({
 				|v|
