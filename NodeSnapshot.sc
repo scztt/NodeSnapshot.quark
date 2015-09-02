@@ -401,7 +401,7 @@ TreeSnapshotView : Singleton {
 		gsv.childrenView = View();
 		gsv.childrenView.layout = VLayout().spacing_(0).margins_(0);
 		gsv.view.layout.add(gsv.childrenView);
-		gsv.view.layout.add(nil);
+		//gsv.view.layout.add(nil);
 
 		// if (collapse) {
 		// 	(group.children
