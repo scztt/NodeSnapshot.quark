@@ -33,6 +33,15 @@ GroupSnapshot : NodeSnapshot {
 		^Group.basicNew(server, nodeId);
 	}
 
+	isSynth {
+		^false
+	}
+
+	isGroup {
+		^true
+	}
+
+
 	asString {
 		arg indent = 0;
 		var str, indentString = ("  " ! indent).join("");
@@ -56,6 +65,14 @@ SynthSnapshot : NodeSnapshot {
 
 	*new {
 		^super.new.init()
+	}
+
+	isSynth {
+		^true
+	}
+
+	isGroup {
+		^false
 	}
 
 	init {
