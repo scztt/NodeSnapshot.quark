@@ -442,10 +442,14 @@ TreeSnapshotView : Singleton {
 		// 		^this.makeViewSynth(node, *args);
 		// 	}
 		// }
-		viewObj.set(node);
-		viewsInUse.add(viewObj);
-		viewMap[node.nodeId] = viewObj;
-		^viewObj.view;
+		if (viewObj.notNil) {
+			viewObj.set(node);
+			viewsInUse.add(viewObj);
+			viewMap[node.nodeId] = viewObj;
+			^viewObj.view;
+		} {
+			^nil;
+		}
 	}
 
 	drawBorder {
@@ -508,10 +512,11 @@ TreeSnapshotView : Singleton {
 		} {
 			var views, layout;
 			layout = VLayout().margins_(0).spacing_(3);
-			views = gsv.snapshot.children.collect(this.makeViewNode(_)).do {
+			views = gsv.snapshot.children.collect(this.makeViewNode(_));
+			views = views.reject(_.isNil);
+			views.do {
 				|v, i|
 				layout.insert(v, i + 1);
-				v;
 			};
 			//layout.insert(nil, gsv.snapshot.children.size);
 			gsv.childrenView.layout = layout;
