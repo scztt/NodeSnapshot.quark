@@ -98,6 +98,23 @@ SynthSnapshot : NodeSnapshot {
 		| inDefName |
 		defName = inDefName.asSymbol;
 		desc = SynthDescLib.match(defName);
+		if (desc.isNil) {
+			// try Ndefs
+			Ndef.all.do {
+				|space|
+				space.do {
+					|ndef|
+					ndef.objects.do {
+						|object|
+						if (object.respondsTo(\synthDef)) {
+							if (object.synthDef.name == inDefName) {
+								desc = object.synthDef.asSynthDesc;
+							};
+						}
+					};
+				}
+			}
+		}
 	}
 
 	outputs {
