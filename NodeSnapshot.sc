@@ -582,7 +582,7 @@ TreeSnapshotView : Singleton {
 
 	makeSynthBody {
 		|sv|
-		^HLayout(this.makeSynthControls(sv), nil)
+		^HLayout(this.makeSynthControls(sv), this.makeSynthInOutputs(sv.snapshot), nil)
 	}
 
 	makeSynthControl {
@@ -657,37 +657,50 @@ TreeSnapshotView : Singleton {
 		).spacing_(1);
 	}
 
-	makeSynthOutput {
-		|sv, output|
-		var type, bus;
-		type = (output.rate == \audio).if(" ▸", " ▹");
+	makeSynthInOutput {
+		|sv, output, inOut|
+		var type, bus, view;
+
+		if (inOut == \in) {
+			type = (output.rate == \audio).if("◀", "◁");
+		} {
+			type = (output.rate == \audio).if("▶", "▷");
+		};
 		bus = output.startingChannel;
 		if (bus.isNumber.not) { bus = "∗" };
 
-		^(StaticText()
-			.align_(\left)
-			.string_("% %".format(type, bus))
-			.font_(Font("M+ 1c", 10))
+		view = (StaticText()
+			.align_(\right)
+			.font_(Font("M+ 1c", 8))
+			.string_("% %".format(bus, type))
 			.stringColor_(QtGUI.palette.highlightText)
-			.background_(Color.grey(0.5, 0.5))
+			.background_(Color.grey(0.5, 0.1))
 			.maxHeight_(12)
-			.minWidth_(20)
-			.maxWidth_(20)
+			.minWidth_(25)
 		);
+		view.bounds = view.bounds.size_(view.sizeHint);
+
+		view.attachHoverScope(output, currentSnapshot.server, size:250@80, align:\right);
+
+		^view
 	}
 
-	makeSynthOutputs {
+	makeSynthInOutputs {
 		|synth|
 		var view = View().layout_(VLayout().spacing_(1).margins_(0));
 
+		synth.inputs.do {
+			|input|
+			view.layout.add(this.makeSynthInOutput(synth, input, \in));
+		};
+
 		synth.outputs.do {
 			|output|
-			view.layout.add(this.makeSynthOutput(synth, output));
-		}
+			view.layout.add(this.makeSynthInOutput(synth, output, \out));
+		};
 
 		^view;
 	}
-
 }
 
 GroupSnapshotView {
@@ -742,10 +755,109 @@ SynthSnapshotView {
 						{ v.background = Color.clear }.defer(0.1);
 						v.background_(v.background.blend(Color.green(1, 0.1)));
 						v.focus(false);
-					})
+					});
 				}
 
 			};
+		}
+	}
+}
+
+SynthOutputDisplay : View {
+	var synth, scopeView, buffer;
+	var <>window;
+
+	*qtClass { ^'QcDefaultWidget' }
+
+	*newWindow { arg parent, bounds, bus;
+		var wind, self;
+
+		wind = Window(
+			"Synth output: %[%]".format(bus.index, bus.numChannels),
+			bounds:bounds ?? {this.sizeHint},
+			border:false
+		);
+
+		self = this.new(wind, bounds.copy.moveTo(0,0), bus);
+		self.window = wind;
+		wind.front;
+
+		^self
+	}
+
+	*new {
+		|parent, bounds, bus|
+		^super.new(parent, bounds).init(bus);
+	}
+
+	init {
+		|bus|
+		var parent;
+
+		this.canFocus = false;
+		this.alwaysOnTop = true;
+
+		synth = BusScopeSynth(bus.server);
+		synth.play(2048, bus, 2048);
+		if (synth.bufferIndex == 0) {
+			synth = BusScopeSynth(bus.server);
+			synth.play(2048, bus, 2048);
+		};
+
+		this.layout_(HLayout(
+			scopeView = ScopeView(bounds:Rect(0, 0, 130, 130));
+		).margins_(1).spacing_(0));
+
+		(scopeView
+			.bufnum_(synth.bufferIndex)
+			.server_(bus.server)
+			.fill_(bus.rate == \audio)
+			.waveColors_(bus.numChannels.collect {
+				|i|
+				var h, s, v, a;
+				#h, s, v, a = Color.hsv(0.555, 1, 0.6).asHSV();
+				h = (h + (i * 0.68)).mod(1).min(1).max(0);
+				Color.hsv(h, s, v, a);
+			})
+			.style_(1));
+
+		fork({
+			bus.server.sync;
+			scopeView.start;
+		}, AppClock);
+
+		if (this.parent.notNil) {
+			parent = this.parents.last;
+		} {
+			parent = this;
+		};
+
+		parent.onClose = {
+			synth.free;
+			scopeView.stop;
+		}
+	}
+
+	autoClose_{
+		|b|
+		if (b) {
+			this.mouseUpAction = {
+				this.close();
+			};
+			this.mouseLeaveAction = {
+				this.close();
+			};
+		} {
+			this.mouseUpAction = nil;
+			this.mouseLeaveAction = nil;
+		}
+	}
+
+	close {
+		if (window.isNil) {
+			super.close();
+		} {
+			window.close();
 		}
 	}
 }
@@ -789,4 +901,58 @@ SynthSnapshotView {
 			(lag == other.lag)
 		)
 	}
+}
+
++View {
+
+	attachHoverScope {
+		|output, server, size, align=\left|
+
+		this.mouseDownAction = {
+			|v, x, y|
+			var origin, winBounds, disp, bus, actualSize;
+			var focused;
+			var rate, index, numChannels;
+
+			server = server ?? Server.default;
+
+			actualSize = size ?? (this.bounds.width @ 80);
+
+			if (output.isKindOf(IODesc)) {
+				bus = Bus(output.rate, output.startingChannel, output.numberOfChannels, server)
+			} {
+				bus = output.value;
+			};
+
+			focused = QtGUI.focusView;
+
+			origin = switch(align,
+				\left, 0@0,
+				\right, v.bounds.width@0
+			);
+
+			origin = v.mapToGlobal(origin);
+
+			disp = SynthOutputDisplay.newWindow(
+				bounds:Rect(
+					origin.x,
+					Window.screenBounds.height - (origin.y + actualSize.y),
+					// origin.y - 10,
+					actualSize.x,
+					actualSize.y
+				),
+				bus: bus
+			).autoClose_(true);
+
+			this.mouseUpAction = {
+				disp.close;
+				this.mouseUpAction = nil;
+			};
+
+			disp.alpha = 0.75;
+			disp.visible = true;
+			focused !? _.focus;
+		};
+	}
+
 }
