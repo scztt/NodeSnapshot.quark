@@ -261,7 +261,7 @@ TreeSnapshot {
 	var server, msg, <nodes, <root, <drawFunc;
 
 	*get {
-		arg action, node;
+		arg action, node, ignore=[];
 		var server;
 		node = node ?? { RootNode(Server.default) };
 		server = node.server;
@@ -305,13 +305,14 @@ TreeSnapshot {
 
 TreeSnapshotView : Singleton {
 	var <view, <viewMap, <viewsInUse, currentSnapshot, collapse=false,
-	groupColor, groupOutline, autoUpdateRoutine, autoUpdate=true;
+	groupColor, groupOutline, autoUpdateRoutine, autoUpdate=true, <ignore;
 
 	init {
 		viewMap = IdentityDictionary();
 		viewsInUse = IdentitySet();
 		groupColor = Color.hsv(0.35, 0.6, 0.5, 0.5);
 		groupOutline = Color.grey(1, 0.3);
+		this.ignore = [".*stethoscope.*"];
 	}
 
 	front {
@@ -320,6 +321,32 @@ TreeSnapshotView : Singleton {
 		} {
 			view.front;
 		};
+	}
+
+	ignore_{
+		|inIgnore|
+		var ignoreStr;
+
+		ignore = inIgnore.collect {
+			|ignore|
+			if (ignore.isKindOf(String)) {
+				ignoreStr = ignore;
+				ignore = {
+					|defName|
+					ignoreStr.matchRegexp(defName.asString)
+				}
+			};
+			ignore;
+		};
+
+		if (autoUpdateRoutine.notNil) {
+			autoUpdateRoutine.updateFunc.();
+		} {
+			TreeSnapshot.get({
+				|sn|
+				this.update(sn);
+			}, RootNode(currentSnapshot !? { currentSnapshot.server } ?? Server.default));
+		}
 	}
 
 	autoUpdate {
@@ -403,7 +430,9 @@ TreeSnapshotView : Singleton {
 			this.populateViewGroup(viewObj);
 		}
 		{ node.isKindOf(SynthSnapshot) } {
-			viewObj = viewObj ?? { this.makeViewSynth(node, *args) };
+			if (ignore.detect({ |f| f.value(node.defName) }).isNil) {
+				viewObj = viewObj ?? { this.makeViewSynth(node, *args) };
+			}
 		};
 
 		// { node.isKindOf(Collection) } {
