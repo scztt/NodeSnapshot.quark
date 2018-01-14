@@ -119,17 +119,34 @@ SynthSnapshot : NodeSnapshot {
 
 	outputs {
 		if (desc.notNil) {
-			^desc.outputs.collect({
-				|out|
-				out = out.copy();
-				if (out.startingChannel.isKindOf(Symbol)) {
-					out.startingChannel = controls[out.startingChannel];
-				};
-				out;
-			})
+			^this.prBuildInOutputs(desc.outputs);
 		} {
 			^[]
 		}
+	}
+
+	inputs {
+		if (desc.notNil) {
+			^this.prBuildInOutputs(desc.inputs);
+		} {
+			^[]
+		}
+	}
+
+	prBuildInOutputs {
+		|coll|
+		^coll.reject({
+			|inout|
+			inout.type.isKindOf(LocalIn.class) ||
+			inout.type.isKindOf(LocalOut.class)
+		}).collect({
+			|inout|
+			inout = inout.copy();
+			if (inout.startingChannel.isKindOf(Symbol)) {
+				inout.startingChannel = controls[inout.startingChannel];
+			};
+			inout;
+		})
 	}
 
 	outBusses {
