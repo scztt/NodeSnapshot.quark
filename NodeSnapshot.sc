@@ -892,14 +892,14 @@ SynthOutputDisplay : View {
 +ControlName {
 	== {
 		|other|
-		^(
+		^(other.class == ControlName) and: {
 			(name == other.name) &&
 			(index == other.index) &&
 			(rate == other.rate) &&
 			(defaultValue == other.defaultValue) &&
 			(argNum == other.argNum) &&
 			(lag == other.lag)
-		)
+		}
 	}
 }
 
