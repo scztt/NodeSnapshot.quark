@@ -9,8 +9,8 @@
           test: "Test/NodeSnapshot_unittest.scd",
            url: "https://github.com/scztt/nodesnapshot.quark",
   dependencies: [
-              		"Singleton@1.0.0",
-              		"WindowViewRecall@1.0.0",
+              		"Singleton",
+              		"WindowViewRecall",
                 ] ++ ((Main.scVersionMajor <= 3) && (Main.scVersionMinor < 9)).if([
 					"UnitTesting@2a8f5e18aaa7cd25968ec094bbfa75a7fb3094b6"
 				]),
