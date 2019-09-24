@@ -258,7 +258,7 @@ TraceParser {
 
 TreeSnapshot {
 	classvar <>dump=false;
-	var server, msg, <nodes, <root, <drawFunc;
+	var <server, msg, <nodes, <root, <drawFunc;
 
 	*get {
 		arg action, node, ignore=[];
