@@ -343,10 +343,6 @@ TraceParser {
 		index = index + items;
 		^nextMsgItem
 	}
-
-	@= {
-
-	}
 }
 
 TreeSnapshot {
