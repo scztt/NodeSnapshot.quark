@@ -172,7 +172,6 @@ SynthSnapshot : NodeSnapshot {
 
 	inputs {
 		if (desc.notNil) {
-			^this.prBuildInOutputs(desc.inputs);
 			^this.prBuildInOutputs(desc.inputs)
 			++ this.prMappedInputs();
 		} {
