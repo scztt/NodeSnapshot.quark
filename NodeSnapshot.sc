@@ -177,6 +177,8 @@ SynthSnapshot : NodeSnapshot {
 	inputs {
 		if (desc.notNil) {
 			^this.prBuildInOutputs(desc.inputs);
+			^this.prBuildInOutputs(desc.inputs)
+			++ this.prMappedInputs();
 		} {
 			^[]
 		}
@@ -196,6 +198,59 @@ SynthSnapshot : NodeSnapshot {
 			};
 			inout;
 		})
+	}
+
+	prMappedInputs {
+		var result, mappings = Set();
+
+		controls.keysValuesDo {
+			|key, value|
+			var mapped;
+
+			if (value.isString || value.isCollection.not) {
+				value = [value];
+			};
+
+			mapped = value.select({
+				|v|
+				(v.isSymbol || v.isString) and: { v.isMap }
+			});
+
+			if (mapped.size == value.size) {
+				mappings.add(mapped.collect(_.asString));
+			} {
+				mappings.addAll(mapped.collect(_.asString));
+			}
+		};
+
+		while { mappings.isEmpty.not } {
+			var input = mappings.pop();
+			var numChannels = 1;
+
+			if (input.isString || input.isCollection.not) {
+				input = [input];
+			};
+
+			if (input.collect(_[1..]).collect(_.asInteger).isSeries(1)) {
+				numChannels = input.size;
+				input = input[0];
+			};
+
+			if (input.isString) {
+				result = result.add(
+					IODesc()
+					.rate_((input[0] == $a).if(\audio, \control))
+					.numberOfChannels_(numChannels)
+					.type_((input[0] == $a).if(In, InFeedback))
+					.startingChannel_(input[1..].asInteger)
+				)
+			} {
+				// if it's still an array here, just process separately
+				mappings = mappings.addAll(input);
+			}
+		};
+
+		^result
 	}
 
 	outBusses {
