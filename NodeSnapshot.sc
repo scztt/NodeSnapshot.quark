@@ -80,14 +80,10 @@ GroupSnapshot : NodeSnapshot {
 		^true
 	}
 
-
 	asString {
 		arg indent = 0;
 		var str, indentString = ("  " ! indent).join("");
 		str = indentString ++ "+ Group: %".format(nodeId);
-		if (children.notEmpty) {
-			str = str + "\n" + children.collect({ |ch| ch.asString(indent + 1) }).join("\n");
-		}
 		^str
 	}
 
@@ -272,12 +268,6 @@ SynthSnapshot : NodeSnapshot {
 		arg indent = 0;
 		var str, indentString = (("  " ! indent).join(""));
 		str = indentString ++ "+ Synth(%): %s".format(nodeId, defName);
-		if (controls.notEmpty) {
-			str = str ++ "\n" ++ controls.asKeyValuePairs.clump(2).collect({
-				|pair|
-				indentString ++ "    %: %".format(*pair)
-			}).join("\n")
-		};
 		^str
 	}
 }
