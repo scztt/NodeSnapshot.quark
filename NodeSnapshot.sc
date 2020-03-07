@@ -17,6 +17,45 @@ NodeSnapshot {
 		// }
 	}
 
+	embedInStream {
+		this.yield;
+	}
+
+	asStream {
+		^Routine({ this.embedInStream }).asStream
+	}
+
+	detect {
+		|function|
+		var next, stream;
+		stream = this.asStream;
+		while { next = stream.next; next.notNil } {
+			if (function.(next)) {
+				^next
+			}
+		};
+		^nil
+	}
+
+	collect {
+		|function|
+		^this.asStream.collect(function).all
+	}
+
+	select {
+		|function|
+		^this.asStream.select(function).all;
+	}
+
+	do {
+		|function|
+		this.asStream.do(function)
+	}
+
+	reject {
+		|function|
+		^this.select({ |...args| function.(*args).not });
+	}
 }
 
 GroupSnapshot : NodeSnapshot {
@@ -58,6 +97,16 @@ GroupSnapshot : NodeSnapshot {
 			nodeId == other.nodeId;
 		}
 	}
+
+	embedInStream {
+		this.yield;
+
+		children.do {
+			|child|
+			child.embedInStream();
+		};
+	}
+
 }
 
 SynthSnapshot : NodeSnapshot {
@@ -300,6 +349,10 @@ TreeSnapshot {
 	storeOn {
 		| stream, indent=0 |
 		stream << "TreeSnapshot: " ++ this.asString();
+	}
+
+	nodeOrder {
+		^root.asStream.all
 	}
 }
 
