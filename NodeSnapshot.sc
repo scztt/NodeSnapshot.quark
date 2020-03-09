@@ -412,7 +412,7 @@ TreeSnapshotView : Singleton {
 	init {
 		viewMap = IdentityDictionary();
 		viewsInUse = IdentitySet();
-		this.ignore = [".*stethoscope.*"];
+		this.ignore = [".*stethoscope.*", ".*BusStatsUpdater.*"];
 	}
 
 	front {
