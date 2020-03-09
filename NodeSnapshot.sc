@@ -1158,8 +1158,7 @@ TreeValidator {
 		var warnings;
 		validationPasses.do {
 			|pass|
-			pass.(root);
-			warnings = warnings.addAll();
+			warnings = warnings.addAll(pass.(root));
 		};
 		^warnings;
 	}
