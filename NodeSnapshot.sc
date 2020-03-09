@@ -836,7 +836,7 @@ GroupSnapshotView {
 		^super.newCopyArgs(groupSnapshot, view);
 	}
 
-	childLayout_{
+	childLayout {
 		view.layout
 	}
 
