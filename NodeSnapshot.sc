@@ -739,7 +739,20 @@ TreeSnapshotView : Singleton {
 
 	makeSynthBody {
 		|sv|
-		^HLayout(this.makeSynthControls(sv), this.makeSynthInOutputs(sv.snapshot), nil)
+		var bodyView, ioView;
+		bodyView = HLayout(
+			VLayout(
+				this.makeSynthControls(sv),
+				nil
+			).spacing_(0).margins_(0),
+			ioView = View().layout_(VLayout()
+				.margins_(0)
+				.spacing_(0)
+			),
+			nil
+		);
+		sv.ioView = ioView;
+		^bodyView
 	}
 
 	makeSynthControl {
@@ -813,51 +826,6 @@ TreeSnapshotView : Singleton {
 			*(controlViews.clump(cols))
 		).spacing_(1);
 	}
-
-	makeSynthInOutput {
-		|sv, output, inOut|
-		var type, bus, view;
-
-		if (inOut == \in) {
-			type = (output.rate == \audio).if("◀", "◁");
-		} {
-			type = (output.rate == \audio).if("▶", "▷");
-		};
-		bus = output.startingChannel;
-		if (bus.isNumber.not) { bus = "∗" };
-
-		view = (StaticText()
-			.align_(\right)
-			.font_(Font("M+ 1c", 8))
-			.string_("% %".format(bus, type))
-			.stringColor_(QtGUI.palette.highlightText)
-			.background_(Color.grey(0.5, 0.1))
-			.maxHeight_(12)
-			.minWidth_(25)
-		);
-		view.bounds = view.bounds.size_(view.sizeHint);
-
-		view.attachHoverScope(output, currentSnapshot.server, size:250@80, align:\right);
-
-		^view
-	}
-
-	makeSynthInOutputs {
-		|synth|
-		var view = View().layout_(VLayout().spacing_(1).margins_(0));
-
-		synth.inputs.do {
-			|input|
-			view.layout.add(this.makeSynthInOutput(synth, input, \in));
-		};
-
-		synth.outputs.do {
-			|output|
-			view.layout.add(this.makeSynthInOutput(synth, output, \out));
-		};
-
-		^view;
-	}
 }
 
 GroupSnapshotView {
@@ -876,7 +844,8 @@ GroupSnapshotView {
 }
 
 SynthSnapshotView {
-	var <>snapshot, <>view, <>controls;
+	var <>snapshot, <>view, <>controls, <>ioView, <>inOuts,
+	<>font;
 
 	*new {
 		|synthSnapshot, view|
@@ -887,14 +856,19 @@ SynthSnapshotView {
 
 	set {
 		|newSynth|
+		var toRemove, toAdd, newIO;
+
 		snapshot = newSynth;
+
+		this.makeSynthInOutputs(snapshot, ioView);
+
 		snapshot.controls.keysValuesDo {
 			|controlName, value|
 			var view = controls[controlName];
 			if (view.isNil) {
 				"View for control '%' of synth % was nil!".format(controlName, snapshot.nodeId).warn;
 			} {
-				if (view.hasFocus.not) {
+				if (view !? { |v| v.hasFocus.not } ?? false) {
 					view.string_("%".format(value.round(0.001)))
 					.action_({
 						|v|
@@ -914,19 +888,98 @@ SynthSnapshotView {
 						v.focus(false);
 					});
 				}
-
 			};
 		}
+	}
+
+	makeSynthInOutput {
+		|synth, output, inOut|
+		var type, bus, addAction, view, inoutCharacters, channelCharacters;
+
+		inoutCharacters = (
+			in: (
+				audio: "◀",
+				control: "◁"
+			),
+			out: (
+				audio: "▶",
+				control: "▷"
+			)
+		);
+		addAction = (in: \addBefore, out: \addAfter)[inOut];
+		channelCharacters = ["⠂", "⠆", "⠴", "⠶", "⠾", "⠿"];
+
+		type = inoutCharacters[inOut][output.rate];
+		type = type ++ channelCharacters.clipAt(output.numberOfChannels-1);
+
+		bus = output.startingChannel;
+		if (bus.isNumber.not) {
+			bus = "∗"
+		} {
+			bus = bus.asInteger
+		};
+
+		view = (StaticText()
+			.align_(\right)
+			.canFocus_(false)
+			.font_(font.copy.size_(9))
+			.string_("% %".format(bus, type))
+			.stringColor_(QtGUI.palette.highlightText)
+			.background_(Color.grey(0.5, 0.1))
+			.maxHeight_(12)
+			.minWidth_(30)
+		);
+		view.bounds = view.bounds.size_(view.sizeHint);
+		view.attachHoverScope(output, synth.asNode, addAction, size:300@80, align:\right);
+
+		^view
+	}
+
+	makeSynthInOutputs {
+		|synth, parent|
+		var oldInOuts, oldView, newView;
+		var layout = VLayout().spacing_(1).margins_(0);
+		var sortFunc = {
+			|a, b|
+			a.startingChannel < b.startingChannel
+		};
+
+		oldInOuts = inOuts ?? { Dictionary() };
+		inOuts = Dictionary();
+
+		synth.inputs.sort(sortFunc).do {
+			|input|
+			newView = oldInOuts[input] ?? {
+				this.makeSynthInOutput(synth, input, \in)
+			};
+			inOuts[input] = newView;
+			oldInOuts[input] = nil;
+			layout.add(newView);
+		};
+
+		synth.outputs.sort(sortFunc).do {
+			|output|
+			newView = oldInOuts[output] ?? {
+				this.makeSynthInOutput(synth, output, \out)
+			};
+			inOuts[output] = newView;
+			oldInOuts[output] = nil;
+			layout.add(newView);
+		};
+
+		oldInOuts.values.do(_.remove);
+
+		parent.layout = layout;
 	}
 }
 
 SynthOutputDisplay : View {
-	var synth, scopeView, buffer;
+	var synth, minMaxSynth, scopeView, buffer;
 	var <>window;
 
 	*qtClass { ^'QcDefaultWidget' }
 
-	*newWindow { arg parent, bounds, bus;
+	*newWindow { arg parent, bounds, bus, inputType, node, addAction;
 		var wind, self;
 
 		wind = Window(
@@ -935,7 +988,7 @@ SynthOutputDisplay : View {
 			border:false
 		);
 
-		self = this.new(wind, bounds.copy.moveTo(0,0), bus);
+		self = this.new(wind, bounds.copy.moveTo(0,0), bus, inputType, node, addAction);
 		self.window = wind;
 		wind.front;
 
@@ -943,25 +996,82 @@ SynthOutputDisplay : View {
 	}
 
 	*new {
-		|parent, bounds, bus|
-		^super.new(parent, bounds).init(bus);
+		|parent, bounds, bus, inputType, node, addAction|
+		^super.new(parent, bounds).init(bus, inputType, node, addAction);
+	}
+
+	prMakeLabel {
+		|name|
+		^StaticText()
+		.canFocus_(false)
+		.font_(Font("M+ 1c", 10, true))
+		.string_(name ++ ":")
+		.maxWidth_(40)
+		.align_(\right)
+	}
+
+	prMakeNumberBox {
+		^NumberBox()
+			.canFocus_(false)
+			.font_(Font("M+ 1c", 10, true))
+			.maxWidth_(40)
+			.minDecimals_(1)
+			.maxDecimals_(3)
 	}
 
 	init {
-		|bus|
-		var parent;
+		|bus, inputType, node, addAction|
+		var parent, minView, maxView, avgView, baseString, min=99999, max=(-99999);
+
+		addAction = addAction ?? \addAfter;
 
 		this.canFocus = false;
 		this.alwaysOnTop = true;
 
 		synth = BusScopeSynth(bus.server);
-		synth.play(2048, bus, 2048);
+		synth.play(2048, bus, 2048, node, addAction);
 		if (synth.bufferIndex == 0) {
 			synth = BusScopeSynth(bus.server);
-			synth.play(2048, bus, 2048);
+			synth.play(2048, bus, 2048, node, addAction);
 		};
 
-		this.layout_(HLayout(
+		minMaxSynth = SignalStatsUpdater(
+			inputType.switch,
+			SignalStatsUpdater.combinedMinMaxAvgFunc,
+			target: node,
+			rate: 1,
+			addAction: addAction
+		);
+		baseString = "Bus % [% %ch]\n=> %".format(
+			bus.index.asInteger,
+			bus.rate.switch(\control, \kr, \audio, \ar),
+			bus.numChannels.asInteger,
+			inputType
+		);
+
+		minMaxSynth.signal(\value).connectToUnique({
+			|who, what, avg, newMin, newMax|
+			[avg, newMin, newMax].postln;
+			max = max.max(newMax);
+			min = min.min(newMin);
+			minView.value = min;
+			maxView.value = max;
+			avgView.value = avg;
+		}).defer;
+
+		this.layout_(VLayout(
+			HLayout(
+				StaticText()
+					.canFocus_(false)
+					.font_(Font("M+ 1c", 10, false))
+					.string_(baseString),
+				this.prMakeLabel("avg"),
+				avgView = this.prMakeNumberBox(),
+				this.prMakeLabel("min"),
+				minView = this.prMakeNumberBox(),
+				this.prMakeLabel("max"),
+				maxView = this.prMakeNumberBox(),
+			).spacing_(2).margins_(0),
 			scopeView = ScopeView(bounds:Rect(0, 0, 130, 130));
 		).margins_(1).spacing_(0));
 
@@ -991,6 +1101,7 @@ SynthOutputDisplay : View {
 
 		parent.onClose = {
 			synth.free;
+			minMaxSynth.free;
 			scopeView.stop;
 		}
 	}
@@ -1113,62 +1224,74 @@ TreeValidator {
 }
 
 +SynthDesc {
+	hash {
+		^this.instVarHash(#[\name, \inputs, \outputs, \controlDict, \constants, \metadata])
+	}
+
 	== {
 		|other|
-		^(
-			(name == name)
+		^(other.class == this.class) and: {
+			(name == other.name)
 			&& (inputs == other.inputs)
 			&& (outputs == other.outputs)
 			&& (controlDict == other.controlDict)
 			&& (constants == other.constants)
 			&& (metadata == other.metadata)
-		)
+		}
 	}
 }
 
 +IODesc {
+	hash {
+		^this.instVarHash(#[\rate, \numberOfChannels, \startingChannel, \type])
+	}
+
 	== {
 		|other|
-		^(
-			(rate == other.rate) &&
-			(numberOfChannels == other.numberOfChannels) &&
-			(startingChannel == other.startingChannel) &&
-			(type == other.type)
-		)
+		^(other.class == this.class) and: {
+			(rate == other.rate)
+			&& (numberOfChannels == other.numberOfChannels)
+			&& (startingChannel == other.startingChannel)
+			&& (type == other.type)
+		}
 	}
 }
 
 +ControlName {
+	hash {
+		^this.instVarHash(#[\name, \index, \rate, \defaultValue, \argNum, \lag])
+	}
+
 	== {
 		|other|
-		^(other.class == ControlName) and: {
-			(name == other.name) &&
-			(index == other.index) &&
-			(rate == other.rate) &&
-			(defaultValue == other.defaultValue) &&
-			(argNum == other.argNum) &&
-			(lag == other.lag)
+		^(other.class == this.class) and: {
+			(name == other.name)
+			&& (index == other.index)
+			&& (rate == other.rate)
+			&& (defaultValue == other.defaultValue)
+			&& (argNum == other.argNum)
+			&& (lag == other.lag)
 		}
 	}
 }
 
 +View {
-
 	attachHoverScope {
-		|output, server, size, align=\left|
+		|output, target, addAction, size, align=\left|
 
 		this.mouseDownAction = {
 			|v, x, y|
 			var origin, winBounds, disp, bus, actualSize;
 			var focused;
-			var rate, index, numChannels;
+			var rate, index, numChannels, type='';
 
-			server = server ?? Server.default;
+			target = target.asTarget;
 
 			actualSize = size ?? (this.bounds.width @ 80);
 
 			if (output.isKindOf(IODesc)) {
-				bus = Bus(output.rate, output.startingChannel, output.numberOfChannels, server)
+				bus = Bus(output.rate, output.startingChannel, output.numberOfChannels, target.server);
+				type = output.type;
 			} {
 				bus = output.value;
 			};
@@ -1190,7 +1313,10 @@ TreeValidator {
 					actualSize.x,
 					actualSize.y
 				),
-				bus: bus
+				bus: bus,
+				inputType: type,
+				node: target,
+				addAction: addAction
 			).autoClose_(true);
 
 			this.mouseUpAction = {
@@ -1201,7 +1327,53 @@ TreeValidator {
 			disp.alpha = 0.75;
 			disp.visible = true;
 			focused !? _.focus;
+			this.focus
 		};
 	}
+}
 
++BusScopeSynth {
+	play { arg bufSize, bus, cycle, target, addAction;
+		var synthDef;
+		var synthArgs;
+		var bufIndex;
+		var busChannels;
+
+		if(server.serverRunning.not) { ^this };
+
+		this.stop;
+
+		if (buffer.isNil) {
+			buffer = ScopeBuffer.alloc(server);
+			synthDefName = "stethoscope" ++ buffer.index.asString;
+		};
+
+		bufIndex = buffer.index.asInteger;
+
+		if( bus.class === Bus ) {
+			busChannels = bus.numChannels.asInteger;
+			synthDef = SynthDef(synthDefName, { arg busIndex, rate, cycle;
+				var z;
+				z = Select.ar(rate, [
+					In.ar(busIndex, busChannels),
+					K2A.ar(In.kr(busIndex, busChannels))]
+				);
+				ScopeOut2.ar(z, bufIndex, bufSize, cycle );
+			});
+			synthArgs = [\busIndex, bus.index.asInteger, \rate, if('audio' === bus.rate, 0, 1), \cycle, cycle];
+		}{
+			synthDef = SynthDef(synthDefName, { arg cycle;
+				var z = Array();
+				bus.do { |b| z = z ++ b.ar };
+				ScopeOut2.ar(z, bufIndex, bufSize, cycle);
+			});
+			synthArgs =	[\cycle, cycle];
+		};
+
+		playThread = fork {
+			synthDef.send(server);
+			server.sync;
+			synth = Synth(synthDef.name, synthArgs, target.asTarget, addAction ?? \addAfter);
+		}
+	}
 }
