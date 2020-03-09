@@ -491,25 +491,83 @@ TreeSnapshotView : Singleton {
 		TreeSnapshot.get({
 			|sn|
 			{
+				var wrapperView;
 				currentSnapshot = sn;
-				view = ScrollView(bounds:Rect(200, 200, 500, 600));
-				view.canvas = View().layout_(VLayout(
-					this.makeViewNode(sn.root),
-					nil
-				));
-				view.canvas.background = QtGUI.palette.window;
+
+				wrapperView = View().layout_(VLayout(
+					this.makeHeader(),
+					view = (ScrollView()
+						.canvas_(View().layout_(VLayout(
+							this.makeViewNode(sn.root),
+							nil
+						).margins_(0).spacing_(0)))
+					)
+				).spacing_(0).margins_(8));
+				view.background = QtGUI.palette.window;
+
 				view.onClose = {
 					this.autoUpdate(false);
 					view = nil;
 					viewsInUse.clear();
 					viewMap.clear();
 				};
-				view.front;
-				view.autoRememberPosition(\TreeSnapshotView, name);
+
+				wrapperView.front;
+				wrapperView.autoRememberPosition(\TreeSnapshotView, name);
 
 				this.autoUpdate(autoUpdate);
 			}.defer
 		})
+	}
+
+	makeHeader {
+		var button, view, menu, bar, doValidation;
+
+		doValidation = {
+			lastValidation = TreeValidator.validate(currentSnapshot.root);
+
+			if (lastValidation.isEmpty) {
+				button.icon = okayIcon;
+			} {
+				button.icon = warningIcon;
+			};
+			lastValidation;
+		};
+
+		view = View().maxHeight_(32).layout_(HLayout(
+			nil,
+			bar = ToolBar(
+				menu = (MenuAction()).asMenu
+			).toolButtonStyle_(QToolButtonStyle.textBesideIcon)
+		).margins_(0).spacing_(0));
+
+		button = bar.actions[0];
+		button.icon = okayIcon;
+		button.string = "validate";
+		button.action = doValidation;
+
+		menu.signal(\aboutToShow).connectToUnique({
+			var warnings;
+
+			menu.clear();
+
+			if (currentSnapshot.notNil) {
+				lastValidation = lastValidation ?? doValidation;
+				if (lastValidation.isEmpty) {
+					menu.addAction(MenuAction("No problems detected."))
+				} {
+					lastValidation.do {
+						|warning|
+						menu.addAction(
+							MenuAction(warning)
+							.font_(font)
+						)
+					}
+				}
+			}
+		});
+
+		^view;
 	}
 
 	makeViewNode {
@@ -961,6 +1019,98 @@ SynthOutputDisplay : View {
 	}
 }
 
+TreeValidator {
+	classvar <>validationPasses;
+
+	*initClass {
+		this.addValidation({
+			|root|
+			this.prValidateNodeOrder(root)
+		})
+	}
+
+	*addValidation {
+		|function|
+		validationPasses = validationPasses.add(function)
+	}
+
+	*validate {
+		|root|
+		var warnings;
+		validationPasses.do {
+			|pass|
+			pass.(root);
+			warnings = warnings.addAll();
+		};
+		^warnings;
+	}
+
+	*prValidateNodeOrder {
+		|root|
+		var readsFrom, writesTo, feedsFrom, warnings;
+
+		readsFrom = Dictionary();
+		writesTo = Dictionary();
+		feedsFrom = Dictionary();
+		warnings = Set();
+
+		root.do({
+			|node|
+
+			if (node.isSynth) {
+
+				// INPUTS
+				node.inputs.do {
+					|input|
+					input.numberOfChannels.do {
+						|i|
+						i = [input.rate, asInteger(input.startingChannel + i)];
+
+						if (writesTo[i].isNil) {
+							if ((input.type == InFeedback)
+								|| (input.rate == \control)) {
+								feedsFrom[i] = node;
+							} {
+								warnings = warnings.add(
+									"% is reading from % before it was written to.".format(
+										node,
+										Bus(i[0], i[1], 1)
+									)
+								)
+							}
+						};
+
+						readsFrom[i] = readsFrom[i].add(node);
+					}
+				};
+
+				// OUTPUTS
+				node.outputs.do {
+					|output|
+					output.numberOfChannels.do {
+						|i|
+						i = [output.rate, asInteger(output.startingChannel + i)];
+
+						if ((output.type == ReplaceOut) && writesTo[i].notNil && (readsFrom[i].isNil)) {
+							warnings = warnings.add(
+								"% is overwriting % before it was read (previously written by %)".format(
+									node,
+									Bus(i[0], i[1], 1),
+									writesTo[i],
+								)
+							)
+						};
+
+						readsFrom[i] = nil;
+						writesTo[i] = node;
+					}
+				};
+			}
+		});
+
+		^warnings
+	}
+}
 
 +SynthDesc {
 	== {
