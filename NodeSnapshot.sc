@@ -425,12 +425,11 @@ TreeSnapshotView : Singleton {
 
 	ignore_{
 		|inIgnore|
-		var ignoreStr;
 
 		ignore = inIgnore.collect {
 			|ignore|
 			if (ignore.isKindOf(String)) {
-				ignoreStr = ignore;
+				var ignoreStr = ignore;
 				ignore = {
 					|defName|
 					ignoreStr.matchRegexp(defName.asString)
