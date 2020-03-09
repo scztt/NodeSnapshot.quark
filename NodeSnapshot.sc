@@ -397,14 +397,21 @@ TreeSnapshot {
 }
 
 TreeSnapshotView : Singleton {
+	classvar okayIcon, warningIcon, groupColor, groupOutline, font;
 	var <view, <viewMap, <viewsInUse, currentSnapshot, collapse=false,
-	groupColor, groupOutline, autoUpdateRoutine, autoUpdate=true, <ignore;
+	autoUpdateRoutine, autoUpdate=true, <ignore, lastValidation;
+
+	*initClass {
+		groupColor = Color.hsv(0.35, 0.6, 0.5, 0.5);
+		groupOutline = Color.grey(1, 0.3);
+		okayIcon = Material("check_box", 16, color:Color.hsv(0.35, 0.8, 0.8, 0.5));
+		warningIcon = Material("warning", 16, color:Color.hsv(0.0, 0.8, 0.8, 0.5));
+		font = Font("M+ 1c", 10, false).freeze;
+	}
 
 	init {
 		viewMap = IdentityDictionary();
 		viewsInUse = IdentitySet();
-		groupColor = Color.hsv(0.35, 0.6, 0.5, 0.5);
-		groupOutline = Color.grey(1, 0.3);
 		this.ignore = [".*stethoscope.*"];
 	}
 
