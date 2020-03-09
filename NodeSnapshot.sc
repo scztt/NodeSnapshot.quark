@@ -572,7 +572,7 @@ TreeSnapshotView : Singleton {
 
 		gsv.view.layout = VLayout().spacing_(3).margins_(5);
 		gsv.view.layout.add(
-			StaticText().font_(Font("M+ 1c", 10, true))
+			StaticText().font_(font.copy.bold_(true))
 			.fixedHeight_(26)
 			.string_("[%] group".format(group.nodeId))
 			.mouseUpAction_({
@@ -624,7 +624,7 @@ TreeSnapshotView : Singleton {
 
 	makeViewSynth {
 		|synth|
-		var sv = SynthSnapshotView(synth);
+		var sv = SynthSnapshotView(synth).font_(font);
 		sv.view = UserView().layout_(
 			VLayout().spacing_(0).margins_(2)
 		);
@@ -647,19 +647,19 @@ TreeSnapshotView : Singleton {
 			(StaticText()
 				.string_("[%]".format(sv.synth.nodeId))
 				.stringColor_(QtGUI.palette.highlightText)
-				.font_(Font("M+ 1c", 10, false))
+				.font_(font)
 			),
 			10,
 			(StaticText()
 				.string_("\\" ++ sv.synth.defName)
 				.stringColor_(QtGUI.palette.highlightText)
-				.font_(Font("M+ 1c", 10, true))
+				.font_(font.copy.bold_(true))
 			),
 			nil,
 			[StaticText()
 				.string_("TRACE")
 				.align_(\right)
-				.font_(Font("M+ 1c", 7.5, true))
+				.font_(font.copy.size_(7.5).bold_(true))
 				.mouseDownAction_({
 					sv.synth.asSynth.trace();
 				})
@@ -669,7 +669,7 @@ TreeSnapshotView : Singleton {
 			[StaticText()
 				.string_("✕")
 				.align_(\right)
-				.font_(Font("M+ 1c", 8, true))
+				.font_(font.copy.size_(8).bold_(true))
 				.mouseDownAction_({
 					sv.synth.asSynth.free();
 					TreeSnapshot.get({ |sn| this.update(sn); })
@@ -694,7 +694,7 @@ TreeSnapshotView : Singleton {
 			StaticText()
 			.maxHeight_(10)
 			.string_(controlName.asString.toUpper)
-			.font_(Font("M+ 1c", 8, false))
+			.font_(font.copy.size_(8))
 			.stringColor_(QtGUI.palette.windowText),
 			align: \bottomRight
 		);
@@ -705,7 +705,7 @@ TreeSnapshotView : Singleton {
 			.minWidth_(230)
 			.maxWidth_(230)
 			.stringColor_(QtGUI.palette.highlightText)
-			.font_(Font("M+ 1c", 10, true))
+			.font_(font.copy.size_(10).bold_(true))
 		);
 
 		view.layout.add(valueField, align: \bottomRight);
