@@ -1060,7 +1060,6 @@ SynthOutputDisplay : View {
 
 		minMaxSynth.signal(\value).connectToUnique({
 			|who, what, avg, newMin, newMax|
-			[avg, newMin, newMax].postln;
 			max = max.max(newMax);
 			min = min.min(newMin);
 			minView.value = min;
