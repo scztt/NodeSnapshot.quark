@@ -412,7 +412,7 @@ TreeSnapshotView : Singleton {
 	init {
 		viewMap = IdentityDictionary();
 		viewsInUse = IdentitySet();
-		this.ignore = [".*stethoscope.*", ".*BusStatsUpdater.*"];
+		this.ignore = [".*stethoscope.*", ".*BusStatsUpdater.*", ".*SignalStatsUpdater.*"];
 	}
 
 	front {
@@ -1021,7 +1021,9 @@ SynthOutputDisplay : View {
 
 	init {
 		|bus, inputType, node, addAction|
-		var parent, minView, maxView, avgView, baseString, min=99999, max=(-99999);
+		var parent, minView, maxView, avgView, baseString, min=99999, max=(-99999), rateMethod;
+
+		rateMethod = bus.rate.switch(\control, \kr, \audio, \ar);
 
 		addAction = addAction ?? \addAfter;
 
@@ -1036,7 +1038,14 @@ SynthOutputDisplay : View {
 		};
 
 		minMaxSynth = SignalStatsUpdater(
-			inputType.switch,
+			case
+				{ (inputType == InFeedback) && (bus.rate == \audio) } {
+					{ InFeedback.perform(rateMethod, bus.index, bus.numChannels) }
+				}
+				/* default*/ {
+					{ In.perform(rateMethod, bus.index, bus.numChannels) }
+				}
+			,
 			SignalStatsUpdater.combinedMinMaxAvgFunc,
 			target: node,
 			rate: 1,
@@ -1044,7 +1053,7 @@ SynthOutputDisplay : View {
 		);
 		baseString = "Bus % [% %ch]\n=> %".format(
 			bus.index.asInteger,
-			bus.rate.switch(\control, \kr, \audio, \ar),
+			rateMethod,
 			bus.numChannels.asInteger,
 			inputType
 		);
