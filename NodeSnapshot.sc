@@ -560,7 +560,7 @@ TreeSnapshotView : Singleton {
 						|warning|
 						menu.addAction(
 							MenuAction(warning)
-							.font_(font)
+							.font_(font.copy.size_(12))
 						)
 					}
 				}
