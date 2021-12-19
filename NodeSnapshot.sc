@@ -184,7 +184,8 @@ SynthSnapshot : NodeSnapshot {
 		^coll.reject({
 			|inout|
 			inout.type.isKindOf(LocalIn.class) ||
-			inout.type.isKindOf(LocalOut.class)
+			inout.type.isKindOf(LocalOut.class) ||
+			inout.startingChannel.isKindOf(UGen)
 		}).collect({
 			|inout|
 			inout = inout.copy();
@@ -208,7 +209,7 @@ SynthSnapshot : NodeSnapshot {
 
 			mapped = value.select({
 				|v|
-				(v.isSymbol || v.isString) and: { v.isMap }
+				(v.isKindOf(Symbol) || v.isString) and: { v.isMap }
 			});
 
 			if (mapped.size == value.size) {
@@ -623,6 +624,8 @@ TreeSnapshotView : Singleton {
 	makeViewGroup {
 		| group |
 		var gsv = GroupSnapshotView(group);
+		var groupName = "group";
+
 		gsv.view = (UserView()
 			.background_(groupColor)
 			.drawFunc_(this.drawBorder(_, groupOutline))
@@ -632,7 +635,7 @@ TreeSnapshotView : Singleton {
 		gsv.view.layout.add(
 			StaticText().font_(font.copy.bold_(true))
 			.fixedHeight_(26)
-			.string_("[%] group".format(group.nodeId))
+			.string_("[%] %".format(group.nodeId, groupName))
 			.mouseUpAction_({
 				|v|
 				gsv.folded = gsv.folded.not;
@@ -1022,6 +1025,7 @@ SynthOutputDisplay : View {
 	init {
 		|bus, inputType, node, addAction|
 		var parent, minView, maxView, avgView, baseString, min=99999, max=(-99999), rateMethod;
+		var inputUgen;
 
 		rateMethod = bus.rate.switch(\control, \kr, \audio, \ar);
 
@@ -1030,22 +1034,21 @@ SynthOutputDisplay : View {
 		this.canFocus = false;
 		this.alwaysOnTop = true;
 
-		synth = BusScopeSynth(bus.server);
-		synth.play(2048, bus, 2048, node, addAction);
-		if (synth.bufferIndex == 0) {
-			synth = BusScopeSynth(bus.server);
-			synth.play(2048, bus, 2048, node, addAction);
+		if ((inputType == InFeedback) && (bus.rate == \audio)) {
+			inputUgen = InFeedback;
+		} {
+			inputUgen = In;
 		};
 
+		synth = BusScopeSynth(bus.server);
+		synth.play(2048, bus, 2048, node, addAction, inputUgen);
+		// if (synth.bufferIndex == 0) {
+		// 	synth = BusScopeSynth(bus.server);
+		// 	synth.play(2048, bus, 2048, node, addAction, inputUgen);
+		// };
+
 		minMaxSynth = SignalStatsUpdater(
-			case
-				{ (inputType == InFeedback) && (bus.rate == \audio) } {
-					{ InFeedback.perform(rateMethod, bus.index, bus.numChannels) }
-				}
-				/* default*/ {
-					{ In.perform(rateMethod, bus.index, bus.numChannels) }
-				}
-			,
+			{ inputUgen.perform(rateMethod, bus.index, bus.numChannels) },
 			SignalStatsUpdater.combinedMinMaxAvgFunc,
 			target: node,
 			rate: 1,
@@ -1121,7 +1124,7 @@ SynthOutputDisplay : View {
 				this.close();
 			};
 			this.mouseLeaveAction = {
-				this.close();
+				// this.close();
 			};
 		} {
 			this.mouseUpAction = nil;
@@ -1324,63 +1327,26 @@ TreeValidator {
 				inputType: type,
 				node: target,
 				addAction: addAction
-			).autoClose_(true);
-
-			this.mouseUpAction = {
-				disp.close;
-				this.mouseUpAction = nil;
-			};
+			);
 
 			disp.alpha = 0.75;
 			disp.visible = true;
 			focused !? _.focus;
-			this.focus
+			this.focus;
+
+			{
+				disp.autoClose = true;
+				this.mouseUpAction = {
+					disp.close;
+					this.mouseUpAction = nil;
+				};
+			}.defer(0.2)
 		};
 	}
 }
 
-+BusScopeSynth {
-	play { arg bufSize, bus, cycle, target, addAction;
-		var synthDef;
-		var synthArgs;
-		var bufIndex;
-		var busChannels;
-
-		if(server.serverRunning.not) { ^this };
-
-		this.stop;
-
-		if (buffer.isNil) {
-			buffer = ScopeBuffer.alloc(server);
-			synthDefName = "stethoscope" ++ buffer.index.asString;
-		};
-
-		bufIndex = buffer.index.asInteger;
-
-		if( bus.class === Bus ) {
-			busChannels = bus.numChannels.asInteger;
-			synthDef = SynthDef(synthDefName, { arg busIndex, rate, cycle;
-				var z;
-				z = Select.ar(rate, [
-					In.ar(busIndex, busChannels),
-					K2A.ar(In.kr(busIndex, busChannels))]
-				);
-				ScopeOut2.ar(z, bufIndex, bufSize, cycle );
-			});
-			synthArgs = [\busIndex, bus.index.asInteger, \rate, if('audio' === bus.rate, 0, 1), \cycle, cycle];
-		}{
-			synthDef = SynthDef(synthDefName, { arg cycle;
-				var z = Array();
-				bus.do { |b| z = z ++ b.ar };
-				ScopeOut2.ar(z, bufIndex, bufSize, cycle);
-			});
-			synthArgs =	[\cycle, cycle];
-		};
-
-		playThread = fork {
-			synthDef.send(server);
-			server.sync;
-			synth = Synth(synthDef.name, synthArgs, target.asTarget, addAction ?? \addAfter);
-		}
++InFeedback {
+	*kr { arg bus = 0, numChannels = 1;
+		^In.kr(bus, numChannels);
 	}
 }
